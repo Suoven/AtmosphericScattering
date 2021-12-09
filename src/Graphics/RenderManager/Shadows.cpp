@@ -215,7 +215,7 @@ void RenderManager::DrawDebugShadowMaps()
 
 		//draw the quad
 		glBindVertexArray(mModels["Quad"]->mMeshes.back().VAOs.back());
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 		glBindVertexArray(0);
 	}
 }

@@ -5,7 +5,7 @@
 void RenderManager::CreateLookUpTable()
 {
 	//get the texture dimensions
-	glm::vec2 size = { 256, 64 };
+	glm::vec2 size = { 512, 256 };
 
 	//--------------------------------- TRANSMITTANCE LOOK UP TABLE ---------------------------------------
 	// generate the buffers for Ambien oclusion

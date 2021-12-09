@@ -15,6 +15,7 @@ uniform vec3 Bme;
 uniform float HR;
 uniform float HM;
 
+const float angle_epsilon = 0.03f;
 const int TRANSMITTANCE_INTEGRAL_SAMPLES = 200;
 
 float itersectAtmosphere(in float alt, in float angle)
@@ -26,7 +27,7 @@ float itersectAtmosphere(in float alt, in float angle)
 
     //compute the constants of the quadratic equation
     float b = 2 * (dot(dir, norm));
-    float cA = dot(norm, norm) - (atm_radius * atm_radius - radius_epsilon);
+    float cA = dot(norm, norm) - (atm_radius * atm_radius);
     float cE = dot(norm, norm) - (planet_radius * planet_radius);
 
     //precompute some variables of the quadratic equation
@@ -72,7 +73,7 @@ float densityOverPath(in float scaleHeight, in float alt, in float angle)
 void main()
 {             
    float h = gl_FragCoord.y / size.y;
-   float a = (gl_FragCoord.x / size.x) * 2.0f - 1.0f;
+   float a = (gl_FragCoord.x / size.x) * 2.0f - 1.0f + angle_epsilon;
    float alt = h * (atm_radius - planet_radius) + planet_radius;
    
    // calculates extinction factor of given altitude and view direction

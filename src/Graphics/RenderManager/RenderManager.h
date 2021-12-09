@@ -174,12 +174,12 @@ private:
 	GLuint						InscatterFBO, InscatterText;								//handlers for the Inscatter look up table
 
 	//atmospheric stats
-	float inscatter_steps = 50.0f;
+	int inscatter_steps = 50;
 	float planet_radius  = 6360.0f;
-	float top_atmosphere = 80.0f;
-	float radius_epsilon = 10.0f;
+	float top_atmosphere = 60.0f;
+	float radius_epsilon = 0.0f;
 	glm::vec3 Br  = glm::vec3(0.0058f, 0.0135f, 0.0331f);
-	glm::vec3 Bms = glm::vec3(0.004f, 0.004f, 0.004f);
+	glm::vec3 Bms = glm::vec3(0.008f, 0.008f, 0.008f);
 	glm::vec3 Bme = Bms / 0.9f;
 	float HR = 8.0f;
 	float HM = 1.2f;

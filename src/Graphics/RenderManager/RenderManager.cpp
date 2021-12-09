@@ -605,6 +605,7 @@ void RenderManager::DirLightPass()
 	differedDirShadingProgram->SetUniform("size", size);
 
 	//set atmospheric stats
+	differedDirShadingProgram->SetUniform("shadow_far", shadow_far);
 	differedDirShadingProgram->SetUniform("planet_center", planet->mPosition);
 	differedDirShadingProgram->SetUniform("planet_radius", planet_radius);
 	differedDirShadingProgram->SetUniform("atm_radius", planet_radius + top_atmosphere);
@@ -1007,7 +1008,7 @@ void RenderManager::Edit()
 {
 	ImGui::Begin("Editor");
 	ImGui::SliderFloat("Radius Epsilon", &radius_epsilon, 0.0f, 100.0f);
-	ImGui::SliderFloat("Inscatter Steps", &inscatter_steps, 1.0f, 1000.0f);
+	ImGui::SliderInt("Inscatter Steps", &inscatter_steps, 1, 1000);
 	ImGui::SliderFloat("Camera Speed Scale", &camera_speed_scale, 0.0f, 100.0f);
 	float dist = (glm::length(mCamera->position() - planet->mPosition) - planet_radius) * camera_speed_scale;
 	camera_speed = dist / top_atmosphere;
@@ -1018,6 +1019,11 @@ void RenderManager::Edit()
 	glm::mat4 rotMtxX = glm::rotate(glm::mat4(1.0f), glm::radians(sun_rotation.x), glm::vec3(0.0f, 1.0f, 0.0f));
 	dir = normalize(rotMtxX * glm::vec4(dir, 0.0f));
 	mDirectionalLight->mStats.m_dir = -normalize(dir);
+
+	float bm = Bms.x;
+	ImGui::SliderFloat("bm", &bm, 0.0f, 100.0f);
+	Bms = glm::vec3(bm);
+	Bme = Bms / 0.9f;
 
 	if (ImGui::TreeNode("Scene"))
 	{

@@ -158,42 +158,43 @@ uniform vec3 Bme;
 uniform vec3 Bms;
 uniform float HR;
 uniform float HM;
-uniform float inscatter_steps;
+uniform int inscatter_steps;
 
 uniform sampler2D ExtintionTexture;
 uniform vec3      camPos;
 
+
 vec3 GetExtintionInSegment(vec3 top_point, vec3 bottom_point)
 {
     vec3 dir = normalize(top_point - bottom_point);
-    vec3 normal1 = (top_point - planet_center);
-    vec3 normal2 = (bottom_point - planet_center);
+    vec3 normalTop = (top_point - planet_center);
+    vec3 normalBot = (bottom_point - planet_center);
 
-    float cos_angle1 = dot(normalize(normal1), dir) * 0.5f + 0.5f;
-    float cos_angle2 = dot(normalize(normal2), dir) * 0.5f + 0.5f;
+    float cos_angleTop = dot(normalize(normalTop), dir) * 0.5f + 0.5f;
+    float cos_angleBot = dot(normalize(normalBot), dir) * 0.5f + 0.5f;
 
-    float h1 = clamp((length(normal1) - planet_radius) / (atm_radius - planet_radius), 0.0f, 1.0f);
-    float h2 = clamp((length(normal2) - planet_radius) / (atm_radius - planet_radius), 0.0f, 1.0f);
+    float hTop = clamp((length(normalTop) - planet_radius) / (atm_radius - planet_radius), 0.0f, 1.0f);
+    float hBot = clamp((length(normalBot) - planet_radius) / (atm_radius - planet_radius), 0.0f, 1.0f);
 
-    vec3 non_extintion = vec3(1.0f);
-    vec3 ext1 = texture(ExtintionTexture, vec2(cos_angle1, h1)).rgb;
-    vec3 ext2 = texture(ExtintionTexture, vec2(cos_angle2, h2)).rgb;
+    vec3 extTop = texture(ExtintionTexture, vec2(cos_angleTop, hTop)).rgb;
+    vec3 extBot = texture(ExtintionTexture, vec2(cos_angleBot, hBot)).rgb;
 
-    return (non_extintion - ext1 + ext2);  
+    return extBot / extTop;
 }
 
 vec3 GetExtintionToAtm(float alt, vec3 normal_to_planet)
 {
     float h = clamp((alt - planet_radius) / (atm_radius - planet_radius), 0.0f, 1.0f);
-    float cos_angle = dot(normal_to_planet, normalize(-Light.world_direction)) * 0.5f + 0.5f;
+    float cos_angle = clamp(dot(normal_to_planet, normalize(-Light.world_direction)) * 0.5f + 0.5f, 0.0f, 1.0f);
     return texture(ExtintionTexture, vec2(cos_angle, h)).rgb;
 }
 
 bool itersectAtmosphere(in vec3 origin, in vec3 dir, out float mint, out float maxt)
 {
     //compute the constants of the quadratic equation
+    float a_radius = atm_radius - radius_epsilon;
     float b = 2.0f * (dot(dir, origin - planet_center));
-    float c = dot(origin - planet_center, origin - planet_center) - (atm_radius * atm_radius - radius_epsilon);
+    float c = dot(origin - planet_center, origin - planet_center) - (a_radius * a_radius);
 
     //precompute some variables of the quadratic equation
     float inside_sqrt = b * b - 4 * c;
@@ -221,20 +222,16 @@ bool itersectAtmosphere(in vec3 origin, in vec3 dir, out float mint, out float m
     return true;
 }
 
-
-bool ComputeEndPoints(in bool is_space, in vec3 world_pos, out vec3 origin, out vec3 dest)
+bool ComputeEndPoints(in bool point_in_space, in bool cam_in_space, in vec3 world_pos, out vec3 origin, out vec3 dest)
 {
-    bool point_outside = length(world_pos - planet_center) > atm_radius ? true : false;
-    bool cam_outside = length(camPos - planet_center) > atm_radius ? true : false;
     vec3 view = normalize(world_pos - camPos);
-
     float tmin = 0.0f;
     float tmax = 0.0f;
 
-    if(!cam_outside)
+    if(!cam_in_space)
     {
         origin = camPos;
-        if(is_space || point_outside)
+        if(point_in_space)
         {
             itersectAtmosphere(camPos, view, tmin, tmax);
             dest = camPos + view * tmin;
@@ -249,7 +246,7 @@ bool ComputeEndPoints(in bool is_space, in vec3 world_pos, out vec3 origin, out 
         if(!intersection) return false;
 
         origin = camPos + view * tmin;
-        if(is_space || point_outside)
+        if(point_in_space)
             dest = camPos + view * tmax;
         else
             dest = world_pos;
@@ -258,7 +255,7 @@ bool ComputeEndPoints(in bool is_space, in vec3 world_pos, out vec3 origin, out 
     return true;
 }
 
-void GetPhaseFunctions(out float Prigh, out float Pmie, in float cosA)
+void ApplyPhaseFunctions(in vec3 Lrigh, in vec3 Lmie, out vec3 PLrigh, out vec3 PLmie, float cosA)
 {
     float g = 0.76f;
     float g2 = g * g;
@@ -266,67 +263,80 @@ void GetPhaseFunctions(out float Prigh, out float Pmie, in float cosA)
     float inside_sqrt = (1.0f + g2 - 2.0f * g * cosA);
     inside_sqrt = inside_sqrt * inside_sqrt * inside_sqrt;
 
-    Prigh =  (3.0f * (1.0f + cosA2)) / (16.0f * PI);
+    PLrigh =  Lrigh * (3.0f * (1.0f + cosA2)) / (16.0f * PI);
 
-    Pmie = (3.0f * (1.0f - g2) * (1.0f + cosA2)) / 
+    PLmie = Lmie * (3.0f * (1.0f - g2) * (1.0f + cosA2)) / 
             (4.0f * PI * 2.0f * (2.0f + g2) * sqrt(inside_sqrt));
+}
+
+
+void integrand(in vec3 p, in vec3 Ecp, in vec2 curr_density, in float ds, out vec3 ray, out vec3 mie, out vec2 final_density)
+{
+    vec3 normal_to_planet = p - planet_center;
+    float alt = length(p - planet_center);
+
+    vec3 Eap = GetExtintionToAtm(alt, normalize(normal_to_planet));
+
+    vec2 deltaRM = vec2(exp(-(alt - planet_radius) / HR), exp(-(alt - planet_radius) / HM));
+    final_density = curr_density + deltaRM * ds;
+
+    //vec3 Ecp = exp(-(final_density.x * Br + final_density.y * Bme));
+    vec3 Eapc = Eap * Ecp;
+
+    
+    vec4 view_pos = inverse(ViewToWorld) * vec4(p, 1.0f);
+    float v = 1.0f;
+    if(ComputeShadow(view_pos.rgb) != 0.0f)
+        v = 0.0f;
+
+    ray  = deltaRM.x * Br * Eapc * v;
+    mie  = deltaRM.y * Bms * Eapc * v;
 }
 
 vec3 ComputeFinalLight(in vec3 L, in vec3 origin, in vec3 dest)
 {
     bool origin_higher = length(origin - planet_center) > length(dest - planet_center) ? true : false;
 
-    vec3 dir = (dest - origin) / inscatter_steps;
+    vec3 dir = (dest - origin) / float(inscatter_steps);
     float ds = length(dir);
-
-    vec2 density_CP = vec2(0.0f);
+    
     vec3 Lrigh = vec3(0.0f);
     vec3 Lmie  = vec3(0.0f);
+    vec2 density_CP = vec2(0.0f);
+    vec3 Lrigh_prev = vec3(0.0f);
+    vec3 Lmie_prev  = vec3(0.0f);
 
-    float Prigh = 0.0f;
-    float Pmie = 0.0f;
-    float cos_angle = dot(normalize(-Light.world_direction), normalize(dir));
-    GetPhaseFunctions(Prigh, Pmie, cos_angle);
+    integrand(origin, vec3(1.0f), density_CP, ds, Lrigh_prev, Lmie_prev, density_CP);
 
-    for(float s = 0.5f; s < inscatter_steps; s += 1.0f)
+    for(int s = 1; s <= inscatter_steps; s++)
     {
-        vec3 p = origin + dir * s;
-        vec3 normal_to_planet = p - planet_center;
-        float alt = length(p - planet_center);
+        vec3 p = origin + dir * float(s);
+        vec3 Lrigh_curr = vec3(0.0f);
+        vec3 Lmie_curr  = vec3(0.0f);
 
-        vec3 Eap = GetExtintionToAtm(alt, normalize(normal_to_planet));
+        vec3 Ecp = vec3(0.0f);  
+        if(origin_higher)   Ecp = GetExtintionInSegment(origin, p);
+        else                Ecp = GetExtintionInSegment(p, origin);
+        integrand(p, Ecp, density_CP, ds, Lrigh_curr, Lmie_curr, density_CP);
 
-        vec2 deltaRM = vec2(exp(-(alt - planet_radius) / HR), exp(-(alt - planet_radius) / HM));
-        density_CP += deltaRM * ds;
+        Lrigh += (Lrigh_curr + Lrigh_prev) / 2.0f * ds;
+        Lmie += (Lmie_curr + Lmie_prev) / 2.0f * ds;
 
-        vec3 Ecp = exp(-(density_CP.x * Br + density_CP.y * Bme));
-        vec3 Eapc = Eap * Ecp;
-
-        vec3 dLrigh = deltaRM.x * Br * Eapc * ds * Prigh;
-        vec3 dLmie = deltaRM.y * Bms * Eapc * ds * Pmie;
-
-        vec4 view_pos = inverse(ViewToWorld) * vec4(p, 1.0f);
-
-        float v = 1.0f;
-        if(ComputeShadow(view_pos.rgb) != 0.0f)
-            v = 0.0f;// - ComputeShadow(view_pos.rgb) * 2.0f;
-
-        Lrigh += dLrigh * v;
-        Lmie  += dLmie * v;
+        Lrigh_prev = Lrigh_curr;
+        Lmie_prev  = Lmie_curr;
     }
 
+    float cos_angle = dot(normalize(-Light.world_direction), normalize(dir));
+    ApplyPhaseFunctions(Lrigh, Lmie, Lrigh, Lmie, cos_angle);
     vec3 Lin = (Lrigh + Lmie) * Light.color * 20.0f;
 
     vec3 Extintion = exp(-(density_CP.x * Br + density_CP.y * Bme));
 
-    vec3 ext = vec3(0.0f);
-    //vec3 ext2 = 0.0f;
-    if(origin_higher)
-        ext = GetExtintionInSegment(origin,dest);
-    else
-        ext = GetExtintionInSegment(dest,origin);
+    vec3 ext = vec3(0.0f);  
+    if(origin_higher)   ext = GetExtintionInSegment(origin, dest);
+    else                ext = GetExtintionInSegment(dest, origin);
 
-    return Extintion;
+    return L * ext + Lin;
 }
 
 void main()
@@ -361,15 +371,16 @@ void main()
    //Lsun =  Light.color;
 
    //check if the fragment is the space itself
-   bool is_space = length(normal_planet) > (atm_radius - radius_epsilon) ? true : false;
-   
+   bool point_in_space  = length(normal_planet) > (atm_radius + radius_epsilon);
+   bool cam_in_space    = length(camPos - planet_center) > atm_radius;
+
    //---------COMPUTE LIGTH COMPONENTS----------------//
    vec3 diffuse	 = Lsun * (max(dot(normal, light), 0.0f) * Diffuse);      
    vec3 specular = Lsun * (pow(max(dot(view, refl), 0.0f), 64.0f) * 0.2f); 
 	
    //add the resultant color
    vec3 Lground = (diffuse + specular);
-   
+
    //check if we are in debug draw of the cascade levels
    if(draw_cascade_levels)
        Lground *= ComputeDebugShadowColor(view_pos);
@@ -379,18 +390,16 @@ void main()
    //compute end points of the ray to ray march for the inscatter light
    vec3 Origin = vec3(0.0f);
    vec3 Dest = vec3(0.0f);
-   if(!ComputeEndPoints(is_space, world_pos, Origin, Dest))
-        discard;
+   bool intersect = ComputeEndPoints(point_in_space, cam_in_space, world_pos, Origin, Dest);
    
-  // Lground = is_space ? Light.color : Lground;
+   if(!intersect || length(camPos - Origin) > length(camPos - world_pos) && cam_in_space && point_in_space)
+   {    
+        FragColor = vec4(Light.color * (diffuse + specular), 1.0);
+        return;
+   }
+   // Lground = is_space ? Light.color : Lground;
    vec3 result = ComputeFinalLight(Lground, Origin, Dest);
    
-   //result = vec3(0.0f);
-   //if(length(Dest - PlanetCenter) > length(Origin - PlanetCenter))
-    //result = vec3(1.0f);
-    
-   // Lground = vec3(texture(gDepth, UV).r);
-   // result = Lground;
-    //set color Normal
-    FragColor = vec4(result, 1.0);
+   //set color Normal
+   FragColor = vec4(result, 1.0);
 }
