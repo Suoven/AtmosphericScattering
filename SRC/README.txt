@@ -1,5 +1,6 @@
 - IMPORTANT NOTES:
-- If you want to execute the .exe inside the BIN folder you need to paste the folder data that is inside SRC folder, into the same folder as the .exe is located.
+- If you want to execute the visual studio solution or the executable, you need to unzip the data folder and copy the contents of it inside the data folder
+of SRC or BIN folders.
 
 1. How to use your program: 
 	LShift: move faster with WASD
