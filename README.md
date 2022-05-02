@@ -3,6 +3,7 @@
 
 - Real time atmospheric simulation
 ![This is a alt text.](/docs/video1.gif "Atmospheric Scattering 1")
+![This is a alt text.](/docs/video6.gif "Atmospheric Scattering 6")
 
 - Smooth transitions between outisde and inside atmosphere
 ![This is a alt text.](/docs/video2.gif "Atmospheric Scattering 2")
