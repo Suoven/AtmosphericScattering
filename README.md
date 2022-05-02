@@ -1,10 +1,18 @@
 # AccelerationStructures
 - If you want to execute the program, you need to unzip the data folder so instead of a data.zip there is just a data folder.
-- Real time atmospheric simulation
 
+- Real time atmospheric simulation
 ![This is a alt text.](/docs/video1.gif "Atmospheric Scattering 1")
+
 - Smooth transitions between outisde and inside atmosphere
 ![This is a alt text.](/docs/video2.gif "Atmospheric Scattering 2")
+![This is a alt text.](/docs/video5.gif "Atmospheric Scattering 3")
+
+- Implemented with Horizontal Ambient Occlusion
+![This is a alt text.](/docs/video3.gif "Atmospheric Scattering 4")
+
+- Implemented with Cascaded Shadow Maps to allow for big scenes
+![This is a alt text.](/docs/video4.gif "Atmospheric Scattering 5")
 
 # How to use the program
 	LShift: move faster with WASD
